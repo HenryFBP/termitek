@@ -6,6 +6,7 @@ from asciimatics.exceptions import StopApplication
 from asciimatics.event import KeyboardEvent
 import math
 import logging
+from typing import Tuple
 
 # 1. Set up logging configuration
 logging.basicConfig(
@@ -48,6 +49,14 @@ game_map = [
     "###############",
 ]
 
+def cardinal_to_vector(cardinal:str)->Tuple[int]:
+    cardinal=cardinal.upper()
+    return {
+        'N': (0, -1,),
+        'E': (1, 0,),
+        'S': (0, 1,),
+        'W': (-1, 0,),
+    }[cardinal]
 
 class Player:
     def __init__(self, x, y):
@@ -62,38 +71,31 @@ class Player:
         # Define a small threshold for floating point precision
         epsilon = 0.01
 
-        if abs(self.angle) < epsilon:
-            return "N"
-        elif abs(self.angle - (math.pi / 2)) < epsilon:
-            return "E"
-        elif abs(self.angle - math.pi) < epsilon:
-            return "S"
-        elif abs(self.angle - (3 * math.pi / 2)) < epsilon:
-            return "W"
-        # If angle doesn't exactly match, just return the nearest cardinal direction
+        directions = 'ESWN'
 
         index = int(((self.angle + (math.pi / 4)) % (2 * math.pi)) / (math.pi / 2))
 
         if index >= 4:
             index = index % 4
 
-        return ["N", "E", "S", "W"][index]
+        return directions[index]
+
+    def move_to(self, offset:Tuple[int], world:World):
+        if can_move_to(self.x + offset[0], self.y+offset[1], world):
+            self.x += offset[0]
+            self.y += offset[1]
 
     def move_left(self, world: World):
-        if can_move_to(self.x - 1, self.y, world):
-            self.x -= 1
+        self.move_to((-1, 0),world)
 
     def move_right(self, world: World):
-        if can_move_to(self.x + 1, self.y, world):
-            self.x += 1
+        self.move_to((1, 0),world)
 
     def move_up(self, world: World):
-        if can_move_to(self.x, self.y - 1, world):
-            self.y -= 1
+        self.move_to((0, -1),world)
 
     def move_down(self, world: World):
-        if can_move_to(self.x, self.y + 1, world):
-            self.y += 1
+        self.move_to((0, 1),world)
 
     def rotate_left(self, amount):
         self.angle -= amount
@@ -131,27 +133,34 @@ class PlayerEffect(BaseEffect):
             key = event.key_code
 
             if is_movement_key(key):
+
                 player_pos = self.player.get_position()
-                if key == Screen.KEY_LEFT and can_move_to(
-                    player_pos[0] - 1, player_pos[1], self.world
-                ):
+
+                if key == Screen.KEY_LEFT:
                     self.player.move_left(self.world)
-                elif key == Screen.KEY_RIGHT and can_move_to(
-                    player_pos[0] + 1, player_pos[1], self.world
-                ):
+                elif key == Screen.KEY_RIGHT:
                     self.player.move_right(self.world)
-                elif key == Screen.KEY_UP and can_move_to(
-                    player_pos[0], player_pos[1] - 1, self.world
-                ):
+                elif key == Screen.KEY_UP:
                     self.player.move_up(self.world)
-                elif key == Screen.KEY_DOWN and can_move_to(
-                    player_pos[0], player_pos[1] + 1, self.world
-                ):
+                elif key == Screen.KEY_DOWN:
                     self.player.move_down(self.world)
+
                 elif key == ord("a"):
                     self.player.angle -= math.pi / 16
                 elif key == ord("d"):
                     self.player.angle += math.pi / 16
+                
+                # move forwards in 3d
+                elif key == ord("w"):
+                    vec = cardinal_to_vector(self.player.get_heading())
+                    self.player.move_to(vec,self.world)
+
+                # move backwards in 3d
+                elif key == ord("s"):
+                    vec = cardinal_to_vector(self.player.get_heading())
+                    vec = (-vec[0], -vec[1],)
+                    self.player.move_to(vec,self.world)
+
                 logging.info(f"Player moved to: {player_pos}")
             elif key == Screen.KEY_ESCAPE:
                 logging.info("Goodbye :)")
@@ -232,7 +241,9 @@ def is_movement_key(key):
         Screen.KEY_RIGHT,
         Screen.KEY_UP,
         Screen.KEY_DOWN,
+        ord("w"),
         ord("a"),
+        ord("s"),
         ord("d"),
     ]
     return key in movement_keys

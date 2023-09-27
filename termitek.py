@@ -14,22 +14,39 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
 
+
+class Block:
+    def __init__(self, symbol, tooltip, walkable=True):
+        self.symbol = symbol
+        self.tooltip = tooltip
+        self.walkable = walkable
+
+
+class World:
+    def __init__(self, game_map):
+        self.blocks = {
+            "#": Block("#", "Wall: Impenetrable barrier.", False),
+            ".": Block(".", "Ground: Walkable terrain."),
+            "T": Block("T", "Tree: A source of wood."),
+            "M": Block("M", "Machine: Used for automation."),
+        }
+        self.map = [[self.blocks[cell] for cell in row] for row in game_map]
+
+    def get_block(self, x, y):
+        if 0 <= y < len(self.map) and 0 <= x < len(self.map[0]):
+            return self.map[y][x]
+        return None
+
+
 game_map = [
     "###############",
-    "#.....T....#..#",
+    "......T....#..#",
     "#.....#....#..#",
     "#..M..#....#..#",
     "#.....#....#..#",
     "#.....#....#..#",
     "###############",
 ]
-
-tooltips = {
-    "T": "Tree: A source of wood.",
-    "M": "Machine: Used for automation.",
-    ".": "Ground: Walkable terrain.",
-    "#": "Wall: Impenetrable barrier.",
-}
 
 
 class Player:
@@ -54,24 +71,30 @@ class Player:
         elif abs(self.angle - (3 * math.pi / 2)) < epsilon:
             return "W"
         # If angle doesn't exactly match, just return the nearest cardinal direction
+        
+        index = int(((self.angle + (math.pi / 4)) % (2 * math.pi)) / (math.pi / 2))
+
+        if(index >= 4):
+            index = index % 4
+
         return ["N", "E", "S", "W"][
-            int(((self.angle + (math.pi / 4)) % (2 * math.pi)) / (math.pi / 2))
+            index
         ]
 
-    def move_left(self, game_map):
-        if can_move_to(self.x - 1, self.y, game_map):
+    def move_left(self, world: World):
+        if can_move_to(self.x - 1, self.y, world):
             self.x -= 1
 
-    def move_right(self, game_map):
-        if can_move_to(self.x + 1, self.y, game_map):
+    def move_right(self, world: World):
+        if can_move_to(self.x + 1, self.y, world):
             self.x += 1
 
-    def move_up(self, game_map):
-        if can_move_to(self.x, self.y - 1, game_map):
+    def move_up(self, world: World):
+        if can_move_to(self.x, self.y - 1, world):
             self.y -= 1
 
-    def move_down(self, game_map):
-        if can_move_to(self.x, self.y + 1, game_map):
+    def move_down(self, world: World):
+        if can_move_to(self.x, self.y + 1, world):
             self.y += 1
 
     def rotate_left(self, amount):
@@ -88,10 +111,11 @@ class Player:
 
 
 class BaseEffect(Effect):
-    def __init__(self, screen, player: Player):
+    def __init__(self, screen: Screen, player: Player, world: World):
         super(BaseEffect, self).__init__(screen)
         self._screen = screen
         self.player = player
+        self.world = world
 
     def reset(self):
         pass
@@ -111,21 +135,21 @@ class PlayerEffect(BaseEffect):
             if is_movement_key(key):
                 player_pos = self.player.get_position()
                 if key == Screen.KEY_LEFT and can_move_to(
-                    player_pos[0] - 1, player_pos[1], game_map
+                    player_pos[0] - 1, player_pos[1], self.world
                 ):
-                    self.player.move_left(game_map)
+                    self.player.move_left(self.world)
                 elif key == Screen.KEY_RIGHT and can_move_to(
-                    player_pos[0] + 1, player_pos[1], game_map
+                    player_pos[0] + 1, player_pos[1], self.world
                 ):
-                    self.player.move_right(game_map)
+                    self.player.move_right(self.world)
                 elif key == Screen.KEY_UP and can_move_to(
-                    player_pos[0], player_pos[1] - 1, game_map
+                    player_pos[0], player_pos[1] - 1, self.world
                 ):
-                    self.player.move_up(game_map)
+                    self.player.move_up(self.world)
                 elif key == Screen.KEY_DOWN and can_move_to(
-                    player_pos[0], player_pos[1] + 1, game_map
+                    player_pos[0], player_pos[1] + 1, self.world
                 ):
-                    self.player.move_down(game_map)
+                    self.player.move_down(self.world)
                 elif key == ord("a"):
                     self.player.angle -= math.pi / 16
                 elif key == ord("d"):
@@ -146,10 +170,12 @@ class MinimapEffect(BaseEffect):
         self._draw_minimap()
 
     def _draw_minimap(self):
-        for y, row in enumerate(game_map):
+        for y, row in enumerate(self.world.map):
             for x, cell in enumerate(row):
-                color = Screen.COLOUR_GREEN if cell == "T" else Screen.COLOUR_BLACK
-                self._screen.print_at(cell, x, y, bg=color)
+                color = (
+                    Screen.COLOUR_GREEN if cell.symbol == "T" else Screen.COLOUR_BLACK
+                )
+                self._screen.print_at(cell.symbol, x, y, bg=color)
 
         # Draw player on the minimap
         player_x, player_y = self.player.get_position()
@@ -160,18 +186,26 @@ class CompassEffect(BaseEffect):
     def _update(self, frame_no):
         # You can render compass using ASCII art or simple direction letters based on the player's angle.
         compass_dir = self.player.get_heading()
+        text_heading = "[  {}  ]".format(compass_dir)
         self._screen.print_at(
-            compass_dir, 0, len(game_map) + 2, colour=Screen.COLOUR_YELLOW
+            text_heading, 0, len(self.world.map) + 2, colour=Screen.COLOUR_YELLOW
         )
+
+        text_xy = "[{} , {}]".format(*self.player.get_position())
+        self._screen.print_at(
+            text_xy, 0, len(self.world.map) + 3, colour=Screen.COLOUR_YELLOW
+        )
+
+        # self._screen.
 
 
 class View3DEffect(BaseEffect):
     def _update(self, frame_no):
         render_3d_view(
             self._screen,
-            self.player.get_position(),
-            self.player.get_angle(),
-            len(game_map[0]) + 2,
+            self.player,
+            self.world,
+            len(self.world.map[0]) + 2,
             0,
         )
 
@@ -180,12 +214,11 @@ FOV = math.pi / 4  # 45 degree field of view
 MAX_DISTANCE = 10  # Maximum distance a ray can travel
 
 
-def can_move_to(x, y, game_map):
-    # Check boundaries
-    if x < 0 or x >= len(game_map[0]) or y < 0 or y >= len(game_map):
+def can_move_to(x, y, world: World):
+    block = world.get_block(x, y)
+    if block is None:
         return False
-    # Check for wall
-    if game_map[y][x] == "#":
+    if not block.walkable:
         return False
     return True
 
@@ -202,27 +235,11 @@ def is_movement_key(key):
     return key in movement_keys
 
 
-def cast_ray(x, y, angle, game_map):
-    distance = 0
-    dx = math.cos(angle)
-    dy = math.sin(angle)
-
-    while distance < MAX_DISTANCE:
-        x += dx * 0.1
-        y += dy * 0.1
-        distance += 0.1
-
-        if 0 <= int(y) < len(game_map) and 0 <= int(x) < len(game_map[0]):
-            tile = game_map[int(y)][int(x)]
-            if tile == "#":
-                break
-
-    return distance
-
-
-def render_3d_view(screen, player_position, player_angle, start_x, start_y):
+def render_3d_view(screen, player: Player, world: World, start_x, start_y):
     screen_width = screen.width // 2
     screen_height = screen.height
+    player_position = player.get_position()
+    player_angle = player.get_angle()
     max_depth = 8
     step = 0.05
 
@@ -240,8 +257,8 @@ def render_3d_view(screen, player_position, player_angle, start_x, start_y):
             depth += step
 
             map_x, map_y = int(ray_pos[0]), int(ray_pos[1])
-            if 0 <= map_x < len(game_map[0]) and 0 <= map_y < len(game_map):
-                if game_map[map_y][map_x] == "T":
+            if 0 <= map_x < len(world.map[0]) and 0 <= map_y < len(world.map):
+                if world.get_block(map_x, map_y).symbol == "T":
                     hit_tree = True
                     break
 
@@ -274,13 +291,14 @@ def render_3d_view(screen, player_position, player_angle, start_x, start_y):
 
 def game(screen):
     player = Player(1, 1)
+    world = World(game_map)
     scenes = [
         Scene(
             [
-                MinimapEffect(screen, player),
-                CompassEffect(screen, player),
-                View3DEffect(screen, player),
-                PlayerEffect(screen, player),
+                MinimapEffect(screen, player, world),
+                CompassEffect(screen, player, world),
+                View3DEffect(screen, player, world),
+                PlayerEffect(screen, player, world),
             ],
             -1,
         )

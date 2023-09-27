@@ -71,15 +71,13 @@ class Player:
         elif abs(self.angle - (3 * math.pi / 2)) < epsilon:
             return "W"
         # If angle doesn't exactly match, just return the nearest cardinal direction
-        
+
         index = int(((self.angle + (math.pi / 4)) % (2 * math.pi)) / (math.pi / 2))
 
-        if(index >= 4):
+        if index >= 4:
             index = index % 4
 
-        return ["N", "E", "S", "W"][
-            index
-        ]
+        return ["N", "E", "S", "W"][index]
 
     def move_left(self, world: World):
         if can_move_to(self.x - 1, self.y, world):
@@ -182,6 +180,13 @@ class MinimapEffect(BaseEffect):
         self._screen.print_at("P", int(player_x), int(player_y), bg=Screen.COLOUR_BLACK)
 
 
+class InventoryEffect(BaseEffect):
+    def _update(self, frame_no):
+        self._screen.print_at(
+            "Inventory: TODO", 0, len(self.world.map) + 4, colour=Screen.COLOUR_BLUE
+        )
+
+
 class CompassEffect(BaseEffect):
     def _update(self, frame_no):
         # You can render compass using ASCII art or simple direction letters based on the player's angle.
@@ -195,8 +200,6 @@ class CompassEffect(BaseEffect):
         self._screen.print_at(
             text_xy, 0, len(self.world.map) + 3, colour=Screen.COLOUR_YELLOW
         )
-
-        # self._screen.
 
 
 class View3DEffect(BaseEffect):
@@ -299,6 +302,7 @@ def game(screen):
                 CompassEffect(screen, player, world),
                 View3DEffect(screen, player, world),
                 PlayerEffect(screen, player, world),
+                InventoryEffect(screen, player, world),
             ],
             -1,
         )

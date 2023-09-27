@@ -17,10 +17,11 @@ logging.basicConfig(
 
 
 class Block:
-    def __init__(self, symbol, tooltip, walkable=True):
+    def __init__(self, symbol, tooltip, walkable=True, mineable=False):
         self.symbol = symbol
         self.tooltip = tooltip
         self.walkable = walkable
+        self.mineable = mineable
 
 
 class World:
@@ -28,8 +29,8 @@ class World:
         self.blocks = {
             "#": Block("#", "Wall: Impenetrable barrier.", False),
             ".": Block(".", "Ground: Walkable terrain."),
-            "T": Block("T", "Tree: A source of wood."),
-            "M": Block("M", "Machine: Used for automation."),
+            "T": Block("T", "Tree: A source of wood.", False, True),
+            "M": Block("M", "Machine: Used for automation.", False, True),
         }
         self.map = [[self.blocks[cell] for cell in row] for row in game_map]
 
@@ -49,14 +50,28 @@ game_map = [
     "###############",
 ]
 
-def cardinal_to_vector(cardinal:str)->Tuple[int]:
-    cardinal=cardinal.upper()
+
+def cardinal_to_vector(cardinal: str) -> Tuple[int]:
+    cardinal = cardinal.upper()
     return {
-        'N': (0, -1,),
-        'E': (1, 0,),
-        'S': (0, 1,),
-        'W': (-1, 0,),
+        "N": (
+            0,
+            -1,
+        ),
+        "E": (
+            1,
+            0,
+        ),
+        "S": (
+            0,
+            1,
+        ),
+        "W": (
+            -1,
+            0,
+        ),
     }[cardinal]
+
 
 class Player:
     def __init__(self, x, y):
@@ -67,11 +82,24 @@ class Player:
         # Player's viewing angle (for future 3D rendering)
         self.angle = 0
 
+    def position_in_front_of_me(self) -> Tuple[int]:
+        vec = cardinal_to_vector(self.get_heading())
+        pos = self.get_position()
+        return (
+            vec[0] + pos[0],
+            vec[1] + pos[1],
+        )
+
+    def block_in_front_of_me(self, world: World) -> Block:
+        pos_in_front = self.position_in_front_of_me()
+        block = world.get_block(*pos_in_front)
+        return block
+
     def get_heading(self):
         # Define a small threshold for floating point precision
         epsilon = 0.01
 
-        directions = 'ESWN'
+        directions = "ESWN"
 
         index = int(((self.angle + (math.pi / 4)) % (2 * math.pi)) / (math.pi / 2))
 
@@ -80,22 +108,22 @@ class Player:
 
         return directions[index]
 
-    def move_to(self, offset:Tuple[int], world:World):
-        if can_move_to(self.x + offset[0], self.y+offset[1], world):
+    def move_to(self, offset: Tuple[int], world: World):
+        if can_move_to(self.x + offset[0], self.y + offset[1], world):
             self.x += offset[0]
             self.y += offset[1]
 
     def move_left(self, world: World):
-        self.move_to((-1, 0),world)
+        self.move_to((-1, 0), world)
 
     def move_right(self, world: World):
-        self.move_to((1, 0),world)
+        self.move_to((1, 0), world)
 
     def move_up(self, world: World):
-        self.move_to((0, -1),world)
+        self.move_to((0, -1), world)
 
     def move_down(self, world: World):
-        self.move_to((0, 1),world)
+        self.move_to((0, 1), world)
 
     def rotate_left(self, amount):
         self.angle -= amount
@@ -132,8 +160,7 @@ class PlayerEffect(BaseEffect):
         if isinstance(event, KeyboardEvent):
             key = event.key_code
 
-            if is_movement_key(key):
-
+            if is_action_key(key):
                 player_pos = self.player.get_position()
 
                 if key == Screen.KEY_LEFT:
@@ -149,17 +176,20 @@ class PlayerEffect(BaseEffect):
                     self.player.angle -= math.pi / 16
                 elif key == ord("d"):
                     self.player.angle += math.pi / 16
-                
+
                 # move forwards in 3d
                 elif key == ord("w"):
                     vec = cardinal_to_vector(self.player.get_heading())
-                    self.player.move_to(vec,self.world)
+                    self.player.move_to(vec, self.world)
 
                 # move backwards in 3d
                 elif key == ord("s"):
                     vec = cardinal_to_vector(self.player.get_heading())
-                    vec = (-vec[0], -vec[1],)
-                    self.player.move_to(vec,self.world)
+                    vec = (
+                        -vec[0],
+                        -vec[1],
+                    )
+                    self.player.move_to(vec, self.world)
 
                 logging.info(f"Player moved to: {player_pos}")
             elif key == Screen.KEY_ESCAPE:
@@ -192,7 +222,17 @@ class MinimapEffect(BaseEffect):
 class InventoryEffect(BaseEffect):
     def _update(self, frame_no):
         self._screen.print_at(
-            "Inventory: TODO", 0, len(self.world.map) + 4, colour=Screen.COLOUR_BLUE
+            "Inventory: TODO", 0, len(self.world.map) + 5, colour=Screen.COLOUR_BLUE
+        )
+
+
+class LookingAtEffect(BaseEffect):
+    def _update(self, frame_no):
+        facing_block = self.player.block_in_front_of_me(self.world)
+        text = "Facing: {}".format(facing_block.tooltip)
+
+        self._screen.print_at(
+            text, 0, len(self.world.map) + 4, colour=Screen.COLOUR_MAGENTA
         )
 
 
@@ -235,8 +275,8 @@ def can_move_to(x, y, world: World):
     return True
 
 
-def is_movement_key(key):
-    movement_keys = [
+def is_action_key(key):
+    keys = [
         Screen.KEY_LEFT,
         Screen.KEY_RIGHT,
         Screen.KEY_UP,
@@ -245,8 +285,9 @@ def is_movement_key(key):
         ord("a"),
         ord("s"),
         ord("d"),
+        ord("m"),
     ]
-    return key in movement_keys
+    return key in keys
 
 
 def render_3d_view(screen, player: Player, world: World, start_x, start_y):
@@ -314,6 +355,7 @@ def game(screen):
                 View3DEffect(screen, player, world),
                 PlayerEffect(screen, player, world),
                 InventoryEffect(screen, player, world),
+                LookingAtEffect(screen, player, world),
             ],
             -1,
         )

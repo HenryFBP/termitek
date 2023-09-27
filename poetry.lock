@@ -1,0 +1,71 @@
+[[package]]
+name = "asciimatics"
+version = "1.14.0"
+description = "A cross-platform package to replace curses (mouse/keyboard input & text colours/positioning) and create ASCII animations"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+future = "*"
+Pillow = ">=2.7.0"
+pyfiglet = ">=0.7.2"
+pywin32 = {version = "*", markers = "sys_platform == \"win32\""}
+wcwidth = "*"
+
+[[package]]
+name = "future"
+version = "0.18.3"
+description = "Clean single-source support for Python 3 and 2"
+category = "main"
+optional = false
+python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
+
+[[package]]
+name = "pillow"
+version = "10.0.1"
+description = "Python Imaging Library (Fork)"
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.extras]
+docs = ["furo", "olefile", "sphinx (>=2.4)", "sphinx-copybutton", "sphinx-inline-tabs", "sphinx-removed-in", "sphinxext-opengraph"]
+tests = ["check-manifest", "coverage", "defusedxml", "markdown2", "olefile", "packaging", "pyroma", "pytest", "pytest-cov", "pytest-timeout"]
+
+[[package]]
+name = "pyfiglet"
+version = "1.0.2"
+description = "Pure-python FIGlet implementation"
+category = "main"
+optional = false
+python-versions = ">=3.9"
+
+[[package]]
+name = "pywin32"
+version = "306"
+description = "Python for Window Extensions"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
+name = "wcwidth"
+version = "0.2.6"
+description = "Measures the displayed width of unicode strings in a terminal"
+category = "main"
+optional = false
+python-versions = "*"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.10"
+content-hash = "be83d8af6417833c0a5447860ad8ee9e96621e32af1a35ca6c5183167fc7a311"
+
+[metadata.files]
+asciimatics = []
+future = []
+pillow = []
+pyfiglet = []
+pywin32 = []
+wcwidth = []

@@ -6,7 +6,8 @@ from asciimatics.exceptions import StopApplication
 from asciimatics.event import KeyboardEvent
 import math
 import logging
-from typing import Tuple
+from typing import Tuple, List
+import random
 
 # 1. Set up logging configuration
 logging.basicConfig(
@@ -15,22 +16,58 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
 
+class Item:
+    def __init__(self, symbol, tooltip, name, amount) -> None:
+        self.symbol=symbol
+        self.tooltip = tooltip
+        self.name=name
+        self.amount=amount
+
+class Items:
+    def Log(self):
+        return Item("L","A log.", "Log", 1)
 
 class Block:
-    def __init__(self, symbol, tooltip, walkable=True, mineable=False):
+    def __init__(self, symbol, tooltip, walkable=True, mineable=False, droptable:List[List[Item], List[float]]={}):
         self.symbol = symbol
         self.tooltip = tooltip
         self.walkable = walkable
         self.mineable = mineable
+        self.droptable=droptable
 
+    def drop_items(self) -> List[Item]:
+        if not self.droptable:
+            return []
+
+        items, probabilities = self.droptable
+        dropped_items = []
+
+        for item, prob in zip(items, probabilities):
+            if random.random() < prob:
+                dropped_items.append(item)
+
+        return dropped_items
+
+class Blocks:
+    def Wall(self):
+        return Block("#", "Wall: Impenetrable barrier.", False)
+    
+    def Ground(self):
+        return Block(".", "Ground: Walkable terrain.")
+
+    def Tree(self):
+        return Block("T", "Tree: A source of wood.", False, True, [[1.0, 1.0, 1.0],[Items.Log(), Items.Log(), Items.Log()]]),
+
+    def Machine(self):
+        return Block("M", "Machine: Used for automation.", False, True)
 
 class World:
     def __init__(self, game_map):
         self.blocks = {
-            "#": Block("#", "Wall: Impenetrable barrier.", False),
-            ".": Block(".", "Ground: Walkable terrain."),
-            "T": Block("T", "Tree: A source of wood.", False, True),
-            "M": Block("M", "Machine: Used for automation.", False, True),
+            "#": Blocks.Wall(),
+            ".": Blocks.Ground(),
+            "T": Blocks.Tree(),
+            "M": Blocks.Machine(),
         }
         self.map = [[self.blocks[cell] for cell in row] for row in game_map]
 
@@ -96,8 +133,6 @@ class Player:
         return block
 
     def get_heading(self):
-        # Define a small threshold for floating point precision
-        epsilon = 0.01
 
         directions = "ESWN"
 

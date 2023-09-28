@@ -165,6 +165,12 @@ class Inventory:
         for item in items:
             self.add_item(item)
 
+    def items_count(self)->int:
+        n=0
+        for item in self.items:
+            n+=item.amount
+        return n
+
 class Player:
     def __init__(self, x, y, inventory=Inventory()):
         # Player's position
@@ -326,8 +332,11 @@ class MinimapEffect(BaseEffect):
 
 class InventoryEffect(BaseEffect):
     def _update(self, frame_no):
+
+        text = "Inventory: {} items".format(self.player.inventory.items_count())
+        
         self._screen.print_at(
-            "Inventory: TODO", 0, len(self.world.map) + 5, colour=Screen.COLOUR_BLUE
+            text, 0, len(self.world.map) + 5, colour=Screen.COLOUR_BLUE
         )
 
 
@@ -356,9 +365,9 @@ class CompassEffect(BaseEffect):
         )
 
 
-class View3DEffect(BaseEffect):
+class View3DWolfensteinEffect(BaseEffect):
     def _update(self, frame_no):
-        render_3d_view(
+        render_3d_view_wolfenstein(
             self._screen,
             self.player,
             self.world,
@@ -395,7 +404,7 @@ def is_action_key(key):
     return key in keys
 
 
-def render_3d_view(screen, player: Player, world: World, start_x, start_y):
+def render_3d_view_wolfenstein(screen, player: Player, world: World, start_x, start_y):
     screen_width = screen.width // 2
     screen_height = screen.height
     player_position = player.get_position()
@@ -457,7 +466,7 @@ def game(screen):
             [
                 MinimapEffect(screen, player, world),
                 CompassEffect(screen, player, world),
-                View3DEffect(screen, player, world),
+                # View3DWolfensteinEffect(screen, player, world),
                 PlayerEffect(screen, player, world),
                 InventoryEffect(screen, player, world),
                 LookingAtEffect(screen, player, world),

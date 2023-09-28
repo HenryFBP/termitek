@@ -16,24 +16,35 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
 
+
 class Item:
     def __init__(self, symbol, tooltip, name, amount) -> None:
-        self.symbol=symbol
+        self.symbol = symbol
         self.tooltip = tooltip
-        self.name=name
-        self.amount=amount
+        self.name = name
+        self.amount = amount
+
 
 class Items:
-    def Log(self):
-        return Item("L","A log.", "Log", 1)
+    @staticmethod
+    def Log():
+        return Item("L", "A log.", "Log", 1)
+
 
 class Block:
-    def __init__(self, symbol, tooltip, walkable=True, mineable=False, droptable:List[List[Item], List[float]]={}):
+    def __init__(
+        self,
+        symbol,
+        tooltip,
+        walkable=True,
+        mineable=False,
+        droptable: List[List[Item] | List[float]] = [],
+    ):
         self.symbol = symbol
         self.tooltip = tooltip
         self.walkable = walkable
         self.mineable = mineable
-        self.droptable=droptable
+        self.droptable = droptable
 
     def drop_items(self) -> List[Item]:
         if not self.droptable:
@@ -42,24 +53,36 @@ class Block:
         items, probabilities = self.droptable
         dropped_items = []
 
-        for item, prob in zip(items, probabilities):
+        for prob, item in zip(items, probabilities):
             if random.random() < prob:
                 dropped_items.append(item)
 
         return dropped_items
 
+
 class Blocks:
-    def Wall(self):
+    @staticmethod
+    def Wall():
         return Block("#", "Wall: Impenetrable barrier.", False)
-    
-    def Ground(self):
+
+    @staticmethod
+    def Ground():
         return Block(".", "Ground: Walkable terrain.")
 
-    def Tree(self):
-        return Block("T", "Tree: A source of wood.", False, True, [[1.0, 1.0, 1.0],[Items.Log(), Items.Log(), Items.Log()]]),
+    @staticmethod
+    def Tree():
+        return Block(
+            "T",
+            "Tree: A source of wood.",
+            False,
+            True,
+            [[1.0, 1.0, 1.0], [Items.Log(), Items.Log(), Items.Log()]],
+        )
 
-    def Machine(self):
+    @staticmethod
+    def Machine():
         return Block("M", "Machine: Used for automation.", False, True)
+
 
 class World:
     def __init__(self, game_map):
@@ -69,15 +92,37 @@ class World:
             "T": Blocks.Tree(),
             "M": Blocks.Machine(),
         }
-        self.map = [[self.blocks[cell] for cell in row] for row in game_map]
+        self.map: List[List[Block]] = [
+            [self.blocks[cell] for cell in row] for row in game_map
+        ]
 
-    def get_block(self, x, y):
-        if 0 <= y < len(self.map) and 0 <= x < len(self.map[0]):
+    def get_block(self, x, y)->Block:
+        if self.within_bounds(x,y):
             return self.map[y][x]
         return None
+    
+    def set_block(self, x, y, block:Block)->None:
+        if self.within_bounds(x,y):
+            self.map[y][x] = block
 
+    def break_block(self, x, y)->List[Item]:
+        items = []
 
-game_map = [
+        block = self.get_block(x,y)
+        if block:
+
+            if (not block.mineable):
+                return items
+
+            items += block.drop_items()
+            self.set_block(x,y, Blocks.Ground())
+        
+        return items
+
+    def within_bounds(self,x,y):
+        return ((0 <= y < len(self.map)) and (0 <= x < len(self.map[0])))
+
+game_map: List[str] = [
     "###############",
     "......T....#..#",
     "#.....#....#..#",
@@ -109,15 +154,27 @@ def cardinal_to_vector(cardinal: str) -> Tuple[int]:
         ),
     }[cardinal]
 
+class Inventory:
+    def __init__(self) -> None:
+        self.items: List[Item] = []
+
+    def add_item(self, item: Item):
+        self.items.append(item)
+
+    def add_items(self, items: List[Item]):
+        for item in items:
+            self.add_item(item)
 
 class Player:
-    def __init__(self, x, y):
+    def __init__(self, x, y, inventory=Inventory()):
         # Player's position
         self.x = x
         self.y = y
 
         # Player's viewing angle (for future 3D rendering)
         self.angle = 0
+
+        self.inventory = inventory
 
     def position_in_front_of_me(self) -> Tuple[int]:
         vec = cardinal_to_vector(self.get_heading())
@@ -127,13 +184,21 @@ class Player:
             vec[1] + pos[1],
         )
 
+    def break_block_in_front(self, world:World)->None:
+        
+        pos = self.position_in_front_of_me()
+        block = world.get_block(*pos)
+        if(block):
+            items = world.break_block(*pos)
+            self.inventory.add_items(items)
+
+
     def block_in_front_of_me(self, world: World) -> Block:
         pos_in_front = self.position_in_front_of_me()
         block = world.get_block(*pos_in_front)
         return block
 
     def get_heading(self):
-
         directions = "ESWN"
 
         index = int(((self.angle + (math.pi / 4)) % (2 * math.pi)) / (math.pi / 2))
@@ -225,6 +290,11 @@ class PlayerEffect(BaseEffect):
                         -vec[1],
                     )
                     self.player.move_to(vec, self.world)
+
+                # mine block in front of player
+                elif key == ord('m'):
+                    self.player.break_block_in_front(self.world)
+
 
                 logging.info(f"Player moved to: {player_pos}")
             elif key == Screen.KEY_ESCAPE:
